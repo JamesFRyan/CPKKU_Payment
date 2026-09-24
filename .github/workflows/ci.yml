@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save runner minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-test:
+    name: build / fmt / clippy / test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins 1.98.1 + rustfmt/clippy; rustup honors it
+      # automatically on the first cargo invocation. Print it to make the
+      # resolved toolchain visible in logs.
+      - name: Show toolchain
+        run: |
+          rustup show active-toolchain
+          cargo --version
+          rustc --version
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace
+
+      - name: Test
+        run: cargo test --workspace
+
+      # SQLx offline check is intentionally deferred: there are no migrations or
+      # query!() call sites yet (dev prompt section 29). Re-enable this once the
+      # first migration lands — see issue for the follow-up.
+      # - name: SQLx offline check
+      #   run: cargo sqlx prepare --check --workspace
+
+  audit:
+    name: cargo audit (advisory)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # Advisory only: a new advisory should surface on the PR but not hard-block
+    # merge on its own. Promote to a blocking gate once the team agrees on a
+    # policy for handling advisories.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit
+        run: cargo audit
