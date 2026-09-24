@@ -11,7 +11,7 @@ Grooming
   (break requirement docs in docs/ into scoped tasks)
         |
         v
-Create GitHub Issue
+Create GitLab Issue
   (one task = one issue; acceptance criteria written into the issue body)
         |
         v
@@ -22,12 +22,12 @@ Dev
 Commit
         |
         v
-Open Pull Request
+Open Merge Request
   (references the issue; CI must be green)
         |
         v
 Review
-  (reviewer checks the PR against the issue's acceptance criteria)
+  (reviewer checks the MR against the issue's acceptance criteria)
         |
     +---+---+------------------+
     |       |                  |
@@ -40,7 +40,7 @@ Review
     |                                    |
     v                                    |
 Issue auto-closes  <--------------------+
-  (via "Closes #N" in the PR description)
+  (via "Closes #N" in the MR description)
 ```
 
 ## Branching and Commits
@@ -51,17 +51,17 @@ Issue auto-closes  <--------------------+
   style. Reference the issue number where it adds context.
 - Never force-push a branch someone else is reviewing without saying so first.
 
-## Pull Requests
+## Merge Requests
 
-- One PR = one issue. If a PR grows to cover unrelated work, split it.
-- PR description must include `Closes #<issue-number>` so merging closes the
+- One MR = one issue. If an MR grows to cover unrelated work, split it.
+- MR description must include `Closes #<issue-number>` so merging closes the
   issue automatically.
-- PR description restates the issue's acceptance criteria as a checklist —
+- MR description restates the issue's acceptance criteria as a checklist —
   the reviewer checks off against this, not against vibes.
 
 ### Definition of Done checklist
 
-Every PR must satisfy this before it's ready for review — this mirrors
+Every MR must satisfy this before it's ready for review — this mirrors
 `docs/CPKKU_Payment_Master_Development_Prompt_v3_Rust_DockerCompose_Receipt.md`,
 section 50 exactly, so that document stays the single source of truth. Mark
 an item N/A in the PR description if the change genuinely doesn't touch it —
@@ -77,14 +77,14 @@ don't silently skip it.
 - [ ] `cargo sqlx prepare --check --workspace` (once migrations exist)
 - [ ] Relevant provider contract tests pass
 - [ ] Migration test (if the PR adds/changes a migration)
-- [ ] Docker Compose test (if the PR touches a service's runtime behavior)
+- [ ] Docker Compose test (if the MR touches a service's runtime behavior)
 
-**Manual (author confirms in the PR description):**
+**Manual (author confirms in the MR description):**
 
 - [ ] Security scan reviewed, nothing new flagged
 - [ ] No secret leakage (checked diff for tokens/keys/passwords/PII in logs)
 - [ ] Documentation updated (README/CONTRIBUTING/module docs, as relevant)
-- [ ] OpenAPI spec updated with realistic examples (see "API Documentation & Examples" below, if the PR changes an API contract)
+- [ ] OpenAPI spec updated with realistic examples (see "API Documentation & Examples" below, if the MR changes an API contract)
 - [ ] Audit coverage — new state changes emit an audit event (if applicable)
 - [ ] Monitoring coverage — new failure modes have a metric/alert (if applicable)
 - [ ] Issue's acceptance criteria met
@@ -127,7 +127,7 @@ ambiguity about whether a review blocks merge:
 
 `Request Changes` must say *what* acceptance criterion isn't met, not just
 "this feels off." The author fixes, pushes, and re-requests review. The issue
-stays open until a PR that closes it is merged.
+stays open until an MR that closes it is merged.
 
 If a team wants a quality-trend metric later (e.g. a 1–10 score), track that
 as separate, non-blocking metadata (e.g. a comment or a project field) —
@@ -153,16 +153,16 @@ exception:
 If you are an AI agent picking up an issue in this repo:
 
 1. **Follow this flow exactly** — don't skip straight to code without an
-   issue, and don't merge or close your own PR. A human approves and merges.
+   issue, and don't merge or close your own MR. A human approves and merges.
 2. **Don't guess the provider contract.** If `api-payment kku.json` or the
    ERP manual (`docs/`) doesn't cover what you need, stop and post an Open
    Question on the issue instead of inventing behavior.
-3. **Match the PR description to the issue's acceptance criteria**,
+3. **Match the MR description to the issue's acceptance criteria**,
    checklist-style, so the human reviewer can check off against something
    concrete instead of re-deriving what the task was.
-4. **Run the CI gate locally before opening the PR** (`fmt`, `clippy`,
+4. **Run the CI gate locally before opening the MR** (`fmt`, `clippy`,
    `test`) — don't rely on remote CI to catch formatting/lint issues a local
    run would've caught in seconds.
-5. **State assumptions explicitly** in the PR description whenever the issue
+5. **State assumptions explicitly** in the MR description whenever the issue
    was ambiguous and you had to pick an interpretation — the reviewer needs
    to know what to double-check.

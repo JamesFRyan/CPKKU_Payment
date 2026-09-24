@@ -1,0 +1,76 @@
+# GitLab CI — DoD automated gate.
+#
+# Mirrors the previous GitHub Actions pipeline (.github/workflows/ci.yml):
+# a hard gate (fmt / clippy / build / test) that must pass to merge, plus an
+# advisory cargo-audit job that surfaces advisories without blocking merge.
+#
+# Runs on merge requests and on pushes to main.
+
+stages:
+  - test
+  - audit
+
+# rust-toolchain.toml pins 1.98.1 + rustfmt/clippy; the matching image means
+# rustup honors it without an extra install step.
+default:
+  image: rust:1.98.1
+
+variables:
+  CARGO_TERM_COLOR: "always"
+  RUSTFLAGS: "-D warnings"
+  # Keep cargo's registry inside the workspace so it can be cached.
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+# Cache the cargo registry and build artifacts, keyed on the lockfile.
+.cargo_cache: &cargo_cache
+  cache:
+    key:
+      files:
+        - backend/Cargo.lock
+    paths:
+      - .cargo/
+      - backend/target/
+
+# Only run on merge requests and on the default branch, mirroring the
+# GitHub `on: [push to main, pull_request]` triggers.
+.ci_rules: &ci_rules
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+build-test:
+  stage: test
+  <<: [*cargo_cache, *ci_rules]
+  before_script:
+    - rustup show active-toolchain
+    - cargo --version
+    - rustc --version
+  script:
+    - cd backend
+    - cargo fmt --all --check
+    - cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - cargo build --workspace
+    - cargo test --workspace
+
+# Advisory only: a new advisory should surface on the MR but not hard-block
+# merge on its own. Promote to a blocking gate once the team agrees on a
+# policy for handling advisories.
+audit:
+  stage: audit
+  <<: [*cargo_cache, *ci_rules]
+  allow_failure: true
+  before_script:
+    - cargo install cargo-audit --locked
+  script:
+    - cd backend
+    - cargo audit
+
+# SQLx offline check is intentionally deferred: there are no migrations or
+# query!() call sites yet (dev prompt section 29). Re-enable this once the
+# first migration lands.
+# sqlx-check:
+#   stage: test
+#   <<: [*cargo_cache, *ci_rules]
+#   script:
+#     - cd backend
+#     - cargo sqlx prepare --check --workspace
