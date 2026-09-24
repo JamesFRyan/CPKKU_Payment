@@ -1,0 +1,19 @@
+/backend/target/
+/frontend/node_modules/
+/frontend/.next/
+/infra/**/data/
+
+**/.env
+**/.env.*
+!**/.env.example
+
+*.pdb
+.DS_Store
+Thumbs.db
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Machine-specific MCP server config (absolute path, personal tool install)
+/.mcp.json
+/.codegraph/

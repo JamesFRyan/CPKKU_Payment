@@ -1,0 +1,1577 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KKU Payment Hub",
+    "description": "KKU Payment Hub API - Payment system for Khon Kaen University.\n\nระบบชำระเงินกลางของมหาวิทยาลัยขอนแก่น สำหรับเชื่อมต่อการรับชำระเงินค่าธรรมเนียม ค่าเล่าเรียน และค่าบริการต่าง ๆ ของหน่วยงานภายในมหาวิทยาลัย รองรับช่องทางการชำระเงินหลากหลาย เช่น QR พร้อมเพย์ บาร์โค้ดชำระบิล และบัตรเครดิต\n",
+    "termsOfService": "https://unipay.kku.ac.th/terms",
+    "contact": {
+      "name": "API Support",
+      "url": "https://unipay.kku.ac.th/support",
+      "email": "payment@kku.ac.th"
+    },
+    "license": {
+      "name": "Copyright Khon Kaen University"
+    },
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://unipay.kku.ac.th",
+      "description": "Production server"
+    },
+    {
+      "url": "https://unipay-dev.kku.ac.th",
+      "description": "Development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Authenticate via [OAuth2 Client Credentials](#tag/authentication/POST/oauth/token) or Basic Auth (`api_public:api_secret`). Optional request signing with `x-pay-sign-nonce` header.\n\nการยืนยันตัวตนเพื่อเข้าใช้งาน API สามารถทำได้สองวิธี คือ OAuth2 Client Credentials (ขอ token แล้วแนบมากับทุกคำขอ) หรือ Basic Auth (ใช้ `api_public` เป็น username และ `api_secret` เป็น password) หากต้องการความปลอดภัยเพิ่มเติม สามารถลงลายเซ็นคำขอด้วย header `x-pay-sign-nonce` ได้\n"
+    },
+    {
+      "name": "Debts",
+      "description": "Debt/transaction management — create, query, and cancel outstanding debts.\n\nจัดการรายการหนี้ในระบบ ครอบคลุมการสร้างรายการใหม่ การค้นหารายการที่ค้างชำระ และการยกเลิกรายการที่ยังไม่ได้ชำระ\n"
+    },
+    {
+      "name": "Transactions",
+      "description": "Transaction log queries with filtering and date ranges.\n\nเรียกดูประวัติธุรกรรมทั้งหมด พร้อมตัวกรองตามช่วงวันที่ สถานะการชำระเงิน และเลขอ้างอิง เพื่อใช้ในการตรวจสอบและกระทบยอด\n"
+    },
+    {
+      "name": "QR & Barcode",
+      "description": "Thai PromptPay QR code and bill payment barcode generation (proxied to `kku-payment-qr` service).\n\nสร้าง QR code พร้อมเพย์และบาร์โค้ดสำหรับการรับชำระเงินตามมาตรฐานของประเทศไทย บริการนี้ส่งต่อไปยัง `kku-payment-qr` ซึ่งเป็นไมโครเซอร์วิสเฉพาะทาง\n"
+    },
+    {
+      "name": "Receipts",
+      "description": "Receipt token generation for paid transactions.\n\nขอโทเคนสำหรับเข้าถึงใบเสร็จของรายการที่ชำระเงินเรียบร้อยแล้ว ใช้สำหรับส่งลิงก์ให้ผู้ชำระดาวน์โหลดใบเสร็จอิเล็กทรอนิกส์\n"
+    }
+  ],
+  "paths": {
+    "/oauth/token": {
+      "post": {
+        "summary": "Request access token",
+        "description": "Obtain a Bearer token using client credentials grant.\n\nขอรับ access token ประเภท Bearer โดยใช้ client credentials ที่ได้รับจากทีมพัฒนา นำ token ที่ได้ไปใส่ใน header `Authorization` ของคำขอถัดไป\n",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type",
+                  "client_id",
+                  "client_secret"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": [
+                      "client_credentials"
+                    ]
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "description": "API public key"
+                  },
+                  "client_secret": {
+                    "type": "string",
+                    "description": "API secret key"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token_type": {
+                      "type": "string",
+                      "example": "bearer"
+                    },
+                    "access_token": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "expires_in": {
+                      "type": "integer",
+                      "example": 3600
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "invalid_client"
+                    },
+                    "error_description": {
+                      "type": "string",
+                      "example": "Client authentication failed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Introspect current token",
+        "description": "Returns the decoded JWT token information.\n\nตรวจสอบและดูข้อมูลภายในของ token ที่กำลังใช้งานอยู่ เช่น ผู้ออก สิทธิ์ และเวลาหมดอายุ\n",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw JWT token object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "Raw": {
+                      "type": "string",
+                      "example": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    },
+                    "Method": {
+                      "type": "object",
+                      "properties": {
+                        "Name": {
+                          "type": "string",
+                          "example": "ES256"
+                        },
+                        "Hash": {
+                          "type": "integer",
+                          "example": 5
+                        }
+                      }
+                    },
+                    "Header": {
+                      "type": "object",
+                      "properties": {
+                        "alg": {
+                          "type": "string",
+                          "example": "ES256"
+                        },
+                        "typ": {
+                          "type": "string",
+                          "example": "JWT"
+                        }
+                      }
+                    },
+                    "Claims": {
+                      "type": "object",
+                      "properties": {
+                        "sub": {
+                          "type": "string",
+                          "example": "kku"
+                        },
+                        "aud": {
+                          "type": "string",
+                          "example": "9ee9ef0e289af789"
+                        },
+                        "exp": {
+                          "type": "integer",
+                          "example": 1705312200
+                        },
+                        "iat": {
+                          "type": "integer",
+                          "example": 1705308600
+                        }
+                      }
+                    },
+                    "Valid": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kku/v1/scope": {
+      "get": {
+        "summary": "Get API scope",
+        "description": "Returns the authenticated API's scope and permissions.\n\nดูรายการโปรเจกต์และสิทธิ์การเข้าถึงของ API key ที่ยืนยันตัวตนแล้ว เพื่อใช้ตรวจสอบว่า key ปัจจุบันสามารถเข้าถึงข้อมูลอะไรได้บ้าง\n",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scope information (returns the API scope array directly)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "project_id": {
+                        "type": "string",
+                        "example": "TUITION2024"
+                      },
+                      "permission": {
+                        "type": "integer",
+                        "description": "Unix-style permission (4=read, 6=read+write, 7=full)",
+                        "example": 4
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kku/v1/debts": {
+      "get": {
+        "summary": "Get debts",
+        "description": "Query outstanding debts/transactions with filtering and pagination.\n\nดึงรายการหนี้ที่ยังไม่ได้ชำระในโปรเจกต์ที่ระบุ รองรับการกรองด้วย ref2, ref3, จำนวนเงิน, สถานะการชำระ และแบ่งหน้าผลลัพธ์ด้วย limit/offset\n",
+        "tags": [
+          "Debts"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "description": "Project ID (Reference 1)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "biller_id",
+            "in": "query",
+            "description": "15-digit Biller ID",
+            "schema": {
+              "type": "string",
+              "pattern": "[0-9]{15}"
+            }
+          },
+          {
+            "name": "ref2",
+            "in": "query",
+            "description": "Reference 2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref3",
+            "in": "query",
+            "description": "Reference 3",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "Filter by amount",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "pay_status",
+            "in": "query",
+            "description": "Payment status filter",
+            "schema": {
+              "$ref": "#/components/schemas/PayStatus"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Result limit (default 20)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Result offset (default 0)",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Debts list with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "example": 42
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "transactions": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Transaction"
+                          }
+                        },
+                        "data_time": {
+                          "type": "string",
+                          "format": "date-time",
+                          "example": "2024-01-15T10:30:00+07:00"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add debts",
+        "description": "Create one or more new debt transactions.\n\nสร้างรายการหนี้ใหม่ในระบบ สามารถส่งได้ทีละหลายรายการในคำขอเดียว ระบบจะคืนค่า transaction_id ของรายการที่สร้างสำเร็จ พร้อมแยกรายการที่ซ้ำและรายการที่มีข้อผิดพลาดออกมา\n",
+        "tags": [
+          "Debts"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DebtRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Debts created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/DebtResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/kku/v1/debts/{transactionID}": {
+      "delete": {
+        "summary": "Cancel debt",
+        "description": "Cancel a pending debt transaction by ID.\n\nยกเลิกรายการหนี้ที่ยังไม่ได้ชำระ โดยระบุ transaction_id ของรายการที่ต้องการยกเลิก สามารถยกเลิกได้เฉพาะรายการที่มีสถานะ `new` เท่านั้น\n",
+        "tags": [
+          "Debts"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionID",
+            "in": "path",
+            "required": true,
+            "description": "Transaction ID to cancel",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/kku/v1/transactions": {
+      "get": {
+        "summary": "Get transaction logs",
+        "description": "Query transaction logs with filtering, date range, and pagination.\n\nดึงประวัติธุรกรรมทั้งหมดของโปรเจกต์ รองรับการกรองตามช่วงวันที่ สถานะการชำระ จำนวนเงิน และเลขอ้างอิง เหมาะสำหรับการทำรายงานและการกระทบยอด\n",
+        "tags": [
+          "Transactions"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "description": "Project ID (Reference 1)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "biller_id",
+            "in": "query",
+            "description": "Biller ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "description": "Transaction ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "ref2",
+            "in": "query",
+            "description": "Reference 2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref3",
+            "in": "query",
+            "description": "Reference 3",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "Filter by amount",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "pay_status",
+            "in": "query",
+            "description": "Payment status filter",
+            "schema": {
+              "$ref": "#/components/schemas/PayStatus"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Search from date-time",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2024-01-01T00:00:00+07:00"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Search to date-time",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2024-12-31T23:59:59+07:00"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Result limit (default 20)",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Result offset (default 0)",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction logs with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "object": {
+                      "type": "string",
+                      "example": "transactions"
+                    },
+                    "project_id": {
+                      "type": "string",
+                      "description": "Currently returns literal \"projectID\" due to a known bug",
+                      "example": "projectID"
+                    },
+                    "from": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2024-01-01T00:00:00+07:00"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date-time",
+                      "example": "2024-12-31T23:59:59+07:00"
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "example": 20
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 156
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TransactionLog"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/qr/gen30": {
+      "get": {
+        "summary": "Generate Tag30 QR code",
+        "description": "Generate a Thai PromptPay Tag30 QR code image. Returns a base64-encoded PNG by default, or a raw PNG image when `image=true`. Static QR is generated when amount is 0, dynamic otherwise.\n\nสร้าง QR code พร้อมเพย์ Tag30 สำหรับรับชำระเงิน โดยปกติจะคืนค่าเป็นรูปภาพ PNG แบบ base64 หากต้องการไฟล์รูปตรง ๆ ให้ส่ง `image=true` หากไม่ระบุจำนวนเงินหรือใส่เป็น 0 ระบบจะสร้าง QR แบบ static ที่ผู้ชำระกรอกเงินเองได้\n",
+        "tags": [
+          "QR & Barcode"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "tax_id",
+            "in": "query",
+            "required": true,
+            "description": "Biller's tax ID",
+            "schema": {
+              "type": "string",
+              "maxLength": 13
+            }
+          },
+          {
+            "name": "suffix",
+            "in": "query",
+            "required": true,
+            "description": "Biller's suffix code",
+            "schema": {
+              "type": "string",
+              "maxLength": 2
+            }
+          },
+          {
+            "name": "ref1",
+            "in": "query",
+            "required": true,
+            "description": "Reference 1 (alias: project_id)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref2",
+            "in": "query",
+            "description": "Reference 2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref3",
+            "in": "query",
+            "description": "Reference 3",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "description": "Payment amount (0 = static QR)",
+            "schema": {
+              "type": "number",
+              "format": "double",
+              "default": 0
+            }
+          },
+          {
+            "name": "qr_type",
+            "in": "query",
+            "description": "QR type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dynamic",
+                "static"
+              ],
+              "default": "dynamic"
+            }
+          },
+          {
+            "name": "image",
+            "in": "query",
+            "description": "Return raw PNG image file instead of JSON",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QR code generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QrResponse"
+                  }
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Batch generate Tag30 QR codes",
+        "description": "Generate multiple Thai PromptPay Tag30 QR codes in a single request.\n\nสร้าง QR code พร้อมเพย์ Tag30 หลายรายการพร้อมกันในคำขอเดียว เหมาะสำหรับกรณีที่ต้องออก QR ให้ผู้ชำระหลายคนในคราวเดียว\n",
+        "tags": [
+          "QR & Barcode"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QrRequest"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "QR codes generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QrResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/qr/tag30/{transactionID}": {
+      "get": {
+        "summary": "Generate Tag30 QR from transaction",
+        "description": "Fetch a transaction from the database and generate a Tag30 QR code. The transaction ID can be provided as a path parameter or query parameter.\n\nสร้าง QR code จากรายการหนี้ที่มีอยู่ในระบบ โดยระบบจะดึงข้อมูลผู้รับเงินและจำนวนเงินจากฐานข้อมูลอัตโนมัติ สามารถส่ง transaction_id ผ่าน path หรือ query string ก็ได้\n",
+        "tags": [
+          "QR & Barcode"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "transactionID",
+            "in": "path",
+            "required": false,
+            "description": "Transaction ID (can also use query param `transaction_id`)",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "description": "Transaction ID (alternative to path param)",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "qr_type",
+            "in": "query",
+            "description": "QR type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dynamic",
+                "static"
+              ],
+              "default": "dynamic"
+            }
+          },
+          {
+            "name": "image",
+            "in": "query",
+            "description": "Return raw PNG image file instead of JSON",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "QR code from transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QrResponse"
+                  }
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Transaction not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "integer",
+                          "example": 400
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Bad Request"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "transaction_id is required"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v1/qr/genbillpay": {
+      "get": {
+        "summary": "Generate bill payment QR code",
+        "description": "Generate a Thai bill payment QR code with pipe-delimited format.\n\nสร้าง QR code สำหรับชำระบิลผ่านช่องทางธนาคาร (Bill Payment) ในรูปแบบมาตรฐาน ใช้ได้กับแอปธนาคารทุกธนาคารในประเทศไทย\n",
+        "tags": [
+          "QR & Barcode"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "tax_id",
+            "in": "query",
+            "required": true,
+            "description": "Merchant tax ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suffix",
+            "in": "query",
+            "required": true,
+            "description": "Tax suffix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref1",
+            "in": "query",
+            "required": true,
+            "description": "Bill reference 1 (alias: project_id)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ref2",
+            "in": "query",
+            "required": true,
+            "description": "Bill reference 2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "description": "Payment amount",
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "image",
+            "in": "query",
+            "description": "Return raw PNG image file instead of JSON",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bill payment QR code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QrResponse"
+                  }
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/kku/v1/receipt-token": {
+      "get": {
+        "summary": "Get receipt token",
+        "description": "Generate a JWT token for accessing a paid transaction's receipt. The transaction must have `pay_status = paid`.\n\nขอ token สำหรับเปิดดูใบเสร็จของรายการที่ชำระเงินเรียบร้อยแล้ว นำ token ไปประกอบเป็น URL ส่งให้ผู้ชำระเพื่อดาวน์โหลดใบเสร็จ รายการต้องมีสถานะ `paid` จึงจะขอ token ได้\n",
+        "tags": [
+          "Receipts"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "BasicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "description": "Project ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "query",
+            "required": true,
+            "description": "Transaction ID (must be already paid)",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string",
+                      "description": "JWT token for receipt access",
+                      "example": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Transaction not yet paid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "integer",
+                          "example": 402
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Payment Required"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Transaction has not been paid yet"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "integer",
+                          "example": 404
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Not Found"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Transaction not found"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT token obtained from POST /oauth/token"
+      },
+      "BasicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "API public key as username, API secret as password"
+      },
+      "OAuth2": {
+        "type": "oauth2",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "/oauth/token",
+            "scopes": {
+              "project_id": "Grant API access to project",
+              "permission": "Grant API permission level"
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error response",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errors": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "source": {
+                      "type": "string",
+                      "example": "api_debt.go"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Bad Request"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "project_id is required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "PayStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "static",
+          "paid",
+          "cancel_bill",
+          "cancel_paid",
+          "paid_fail_amount",
+          "paid_fail_duplicate",
+          "paid_fail_overdue",
+          "paid_fail_ref",
+          "paid_fail_server"
+        ]
+      },
+      "TransactionItem": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "example": "tuition fee"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "price": {
+            "type": "number",
+            "format": "double",
+            "example": 8000
+          },
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "example": 8000
+          }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "transaction_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1234567890
+          },
+          "cust_name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "cust_email": {
+            "type": "string",
+            "example": "john@kku.ac.th"
+          },
+          "project_id": {
+            "type": "string",
+            "example": "TUITION2024"
+          },
+          "ref2": {
+            "type": "string",
+            "example": "6512345678"
+          },
+          "ref3": {
+            "type": "string",
+            "example": "SEM1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionItem"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "example": 8000
+          },
+          "pay_status": {
+            "$ref": "#/components/schemas/PayStatus"
+          },
+          "bank_ref": {
+            "type": "string",
+            "example": "SCB20240115001"
+          },
+          "bank_ref_time": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-15T10:30:00+07:00"
+          },
+          "pay_channel": {
+            "type": "string",
+            "example": "QR30"
+          },
+          "payer_name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "payer_bank": {
+            "type": "string",
+            "example": "014"
+          },
+          "payer_account": {
+            "type": "string",
+            "example": "1234567890"
+          },
+          "payee_bank": {
+            "type": "string",
+            "example": "014"
+          },
+          "payee_account": {
+            "type": "string",
+            "example": "0987654321"
+          },
+          "pay_branch": {
+            "type": "string",
+            "example": "0001"
+          },
+          "pay_terminal": {
+            "type": "string",
+            "example": "TERM001"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-02-15T23:59:59+07:00"
+          },
+          "transaction_time": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-10T09:00:00+07:00"
+          }
+        }
+      },
+      "TransactionLog": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "_id": {
+                "type": "integer",
+                "format": "int64",
+                "example": 9876543210
+              },
+              "log_time": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2024-01-15T10:30:05+07:00"
+              }
+            }
+          }
+        ]
+      },
+      "DebtRequest": {
+        "type": "object",
+        "required": [
+          "cust_name",
+          "project_id",
+          "ref2",
+          "amount"
+        ],
+        "properties": {
+          "cust_name": {
+            "type": "string",
+            "description": "Customer name",
+            "example": "John Doe"
+          },
+          "cust_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Customer email",
+            "example": "john@kku.ac.th"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Reference 1 / Project ID",
+            "example": "TUITION2024"
+          },
+          "ref2": {
+            "type": "string",
+            "description": "Reference 2",
+            "example": "6512345678"
+          },
+          "ref3": {
+            "type": "string",
+            "description": "Reference 3",
+            "example": "SEM1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionItem"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "description": "Total amount",
+            "example": 8000
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Payment due date",
+            "example": "2024-02-15T23:59:59+07:00"
+          }
+        }
+      },
+      "DebtResponse": {
+        "type": "object",
+        "properties": {
+          "transactions_error": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DebtResponseItem"
+            }
+          },
+          "transactions_duplicate": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DebtResponseItem"
+            }
+          },
+          "transactions_id": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DebtResponseItem"
+            }
+          },
+          "transactions_time": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-10T09:00:00+07:00"
+          }
+        }
+      },
+      "DebtResponseItem": {
+        "type": "object",
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "example": "1234567890"
+          },
+          "project_id": {
+            "type": "string",
+            "example": "TUITION2024"
+          },
+          "ref2": {
+            "type": "string",
+            "example": "6512345678"
+          },
+          "ref3": {
+            "type": "string",
+            "example": "SEM1"
+          }
+        }
+      },
+      "QrRequest": {
+        "type": "object",
+        "required": [
+          "tax_id",
+          "suffix",
+          "ref1"
+        ],
+        "properties": {
+          "qr_type": {
+            "type": "string",
+            "enum": [
+              "dynamic",
+              "static"
+            ],
+            "default": "dynamic",
+            "example": "dynamic"
+          },
+          "tax_id": {
+            "type": "string",
+            "description": "Biller's tax ID",
+            "example": "0994000165239"
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Biller's suffix code",
+            "example": "00"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Reference 1 (alias for ref1)",
+            "example": "TUITION2024"
+          },
+          "ref1": {
+            "type": "string",
+            "description": "Reference 1",
+            "example": "TUITION2024"
+          },
+          "ref2": {
+            "type": "string",
+            "description": "Reference 2",
+            "example": "6512345678"
+          },
+          "ref3": {
+            "type": "string",
+            "description": "Reference 3",
+            "example": "SEM1"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "description": "Payment amount (0 = static QR)",
+            "example": 8000
+          }
+        }
+      },
+      "QrResponse": {
+        "type": "object",
+        "properties": {
+          "qr_type": {
+            "type": "string",
+            "example": "dynamic"
+          },
+          "tax_id": {
+            "type": "string",
+            "example": "0994000165239"
+          },
+          "suffix": {
+            "type": "string",
+            "example": "00"
+          },
+          "ref1": {
+            "type": "string",
+            "example": "TUITION2024"
+          },
+          "ref2": {
+            "type": "string",
+            "example": "6512345678"
+          },
+          "ref3": {
+            "type": "string",
+            "example": "SEM1"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "example": 8000
+          },
+          "data": {
+            "type": "string",
+            "description": "Thai QR payload string",
+            "example": "00020101021230830016A00000067701011201130994000165239020200030820241001040865123456780515TUITION20245303764540580005802TH63041234"
+          },
+          "image": {
+            "type": "string",
+            "description": "Base64-encoded PNG image (data:image/png;base64,...)",
+            "example": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg..."
+          }
+        }
+      }
+    }
+  }
+}
