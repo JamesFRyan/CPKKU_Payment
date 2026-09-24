@@ -9,3 +9,9 @@ publish.workspace = true
 domain.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
+rust_decimal.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
