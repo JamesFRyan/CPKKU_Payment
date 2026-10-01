@@ -4,3 +4,5 @@
 //!
 //! Must not depend on Axum, SQLx, Redis, Lapin, Reqwest, or any KKU Payment
 //! provider schema (dev prompt section 5, Provider Contract Rule #14).
+
+pub mod payment;
